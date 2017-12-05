@@ -1,25 +1,34 @@
 //
-//  UIImageColors.swift
+//  ImageColors.swift
 //  https://github.com/jathu/UIImageColors
 //
 //  Created by Jathu Satkunarajah (@jathu) on 2015-06-11 - Toronto
 //  Original Cocoa version by Panic Inc. - Portland
 //
 
-import UIKit
+#if os(OSX)
+    import AppKit
+    public typealias Color = NSColor
+    public typealias Image = NSImage
+#else
+    //ios/tvos/watchos
+    import UIKit
+    public typealias Color = UIColor
+    public typealias Image = UIImage
+#endif
 
-public struct UIImageColors {
-    public var background: UIColor!
-    public var primary: UIColor!
-    public var secondary: UIColor!
-    public var detail: UIColor!
+public struct ImageColors {
+    public var background: Color!
+    public var primary: Color!
+    public var secondary: Color!
+    public var detail: Color!
 }
 
 class PCCountedColor {
-    let color: UIColor
+    let color: Color
     let count: Int
     
-    init(color: UIColor, count: Int) {
+    init(color: Color, count: Int) {
         self.color = color
         self.count = count
     }
@@ -32,13 +41,22 @@ extension CGColor {
             var green = CGFloat()
             var blue = CGFloat()
             var alpha = CGFloat()
-            UIColor(cgColor: self).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            
+            #if os(OSX)
+                if let color = Color(cgColor: self)
+                {
+                    color.getRed( &red, green: &green, blue: &blue, alpha: &alpha )
+                }
+            #else
+                let color = Color(cgColor: self )
+                color.getRed( &red, green: &green, blue: &blue, alpha: &alpha )
+            #endif
             return [red,green,blue,alpha]
         }
     }
 }
 
-extension UIColor {
+extension Color {
     
     var isDarkColor: Bool {
         let RGB = self.cgColor.components
@@ -50,8 +68,9 @@ extension UIColor {
         return (RGB[0] > 0.91 && RGB[1] > 0.91 && RGB[2] > 0.91) || (RGB[0] < 0.09 && RGB[1] < 0.09 && RGB[2] < 0.09)
     }
     
-    func isDistinct(compareColor: UIColor) -> Bool {
+    func isDistinct(compareColor: Color) -> Bool {
         let bg = self.cgColor.components
+        
         let fg = compareColor.cgColor.components
         let threshold: CGFloat = 0.25
         
@@ -66,7 +85,7 @@ extension UIColor {
         return false
     }
     
-    func colorWithMinimumSaturation(minSaturation: CGFloat) -> UIColor {
+    func colorWithMinimumSaturation(minSaturation: CGFloat) -> Color {
         var hue: CGFloat = 0.0
         var saturation: CGFloat = 0.0
         var brightness: CGFloat = 0.0
@@ -74,13 +93,13 @@ extension UIColor {
         self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         
         if saturation < minSaturation {
-            return UIColor(hue: hue, saturation: minSaturation, brightness: brightness, alpha: alpha)
+            return Color(hue: hue, saturation: minSaturation, brightness: brightness, alpha: alpha)
         } else {
             return self
         }
     }
     
-    func isContrastingColor(compareColor: UIColor) -> Bool {
+    func isContrastingColor(compareColor: Color) -> Bool {
         let bg = self.cgColor.components
         let fg = compareColor.cgColor.components
         
@@ -96,28 +115,35 @@ extension UIColor {
     
 }
 
-extension UIImage {
-    private func resizeForUIImageColors(newSize: CGSize) -> UIImage {
-        UIGraphicsBeginImageContextWithOptions(newSize, false, 0)
-        defer {
-            UIGraphicsEndImageContext()
-        }
-        self.draw(in: CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height))
-        guard let result = UIGraphicsGetImageFromCurrentImageContext() else {
-            fatalError("UIImageColors.resizeForUIImageColors failed: UIGraphicsGetImageFromCurrentImageContext returned nil")
-        }
+extension Image {
+    
+    private func getCGImageForSize(newSize: CGSize) -> CGImage? {
+        var rect = CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height)
         
-        return result
+        #if os(OSX)
+            return self.cgImage(forProposedRect: &rect, context: NSGraphicsContext.current, hints: nil)
+        #else
+            UIGraphicsBeginImageContextWithOptions( newSize, false, 0)
+            defer {
+                UIGraphicsEndImageContext()
+            }
+            self.draw(in: rect )
+            guard let result = UIGraphicsGetImageFromCurrentImageContext() else {
+                fatalError("ImageColors.getCGImageForSize failed: UIGraphicsGetImageFromCurrentImageContext returned nil")
+            }
+            
+            return result.cgImage
+        #endif
     }
     
     /**
-     Get `UIImageColors` from the image asynchronously (in background thread).
+     Get `ImageColors` from the image asynchronously (in background thread).
      Discussion: Use smaller sizes for better performance at the cost of quality colors. Use larger sizes for better color sampling and quality at the cost of performance.
      
      - parameter scaleDownSize:     Downscale size of image for sampling, if `CGSize.zero` is provided, the sample image is rescaled to a width of 250px and the aspect ratio height.
-     - parameter completionHandler: `UIImageColors` for this image.
+     - parameter completionHandler: `ImageColors` for this image.
      */
-    public func getColors(scaleDownSize: CGSize = CGSize.zero, completionHandler: @escaping (UIImageColors) -> Void) {
+    public func getColors(scaleDownSize: CGSize = CGSize.zero, completionHandler: @escaping (ImageColors) -> Void) {
         DispatchQueue.global().async {
             let result = self.getColors(scaleDownSize: scaleDownSize)
             
@@ -128,14 +154,14 @@ extension UIImage {
     }
     
     /**
-     Get `UIImageColors` from the image synchronously (in main thread).
+     Get `ImageColors` from the image synchronously (in main thread).
      Discussion: Use smaller sizes for better performance at the cost of quality colors. Use larger sizes for better color sampling and quality at the cost of performance.
      
      - parameter scaleDownSize: Downscale size of image for sampling, if `CGSize.zero` is provided, the sample image is rescaled to a width of 250px and the aspect ratio height.
      
-     - returns: `UIImageColors` for this image.
+     - returns: `ImageColors` for this image.
      */
-    public func getColors(scaleDownSize: CGSize = CGSize.zero) -> UIImageColors {
+    public func getColors(scaleDownSize: CGSize = CGSize.zero) -> ImageColors {
         
         var scaleDownSize = scaleDownSize
         
@@ -145,14 +171,18 @@ extension UIImage {
             scaleDownSize = CGSize(width: r_width, height: r_width/ratio)
         }
         
-        var result = UIImageColors()
+        var result = ImageColors()
         
-        let cgImage = self.resizeForUIImageColors(newSize: scaleDownSize).cgImage!
+        guard let cgImage = self.getCGImageForSize(newSize: scaleDownSize )
+            else {
+                fatalError("ImageColors.getColors failed: could not scale down image")
+        }
+        
         let width: Int = cgImage.width
         let height: Int = cgImage.height
         
-        let blackColor = UIColor(red: 0, green: 0, blue: 0, alpha: 1)
-        let whiteColor = UIColor(red: 1, green: 1, blue: 1, alpha: 1)
+        let blackColor = Color(red: 0, green: 0, blue: 0, alpha: 1)
+        let whiteColor = Color(red: 1, green: 1, blue: 1, alpha: 1)
         
         let randomColorsThreshold = Int(CGFloat(height)*0.01)
         let sortedColorComparator: Comparator = { (main, other) -> ComparisonResult in
@@ -167,7 +197,7 @@ extension UIImage {
         }
 
         guard let data = CFDataGetBytePtr(cgImage.dataProvider!.data) else {
-            fatalError("UIImageColors.getColors failed: could not get cgImage data")
+            fatalError("ImageColors.getColors failed: could not get cgImage data")
         }
         
         // Filter out and collect pixels from image
@@ -178,7 +208,7 @@ extension UIImage {
                 let pixel: Int = ((width * y) + x) * 4
                 // Only consider pixels with 50% opacity or higher
                 if 127 <= data[pixel+3] {
-                    imageColors.add(UIColor(
+                    imageColors.add(Color(
                         red: CGFloat(data[pixel+2])/255,
                         green: CGFloat(data[pixel+1])/255,
                         blue: CGFloat(data[pixel])/255,
@@ -191,7 +221,7 @@ extension UIImage {
         // Get background color
         var enumerator = imageColors.objectEnumerator()
         var sortedColors = NSMutableArray(capacity: imageColors.count)
-        while let kolor = enumerator.nextObject() as? UIColor {
+        while let kolor = enumerator.nextObject() as? Color {
             let colorCount = imageColors.count(for: kolor)
             if randomColorsThreshold < colorCount  {
                 sortedColors.add(PCCountedColor(color: kolor, count: colorCount))
@@ -227,7 +257,7 @@ extension UIImage {
         sortedColors = NSMutableArray(capacity: imageColors.count)
         let findDarkTextColor = !result.background.isDarkColor
         
-        while var kolor = enumerator.nextObject() as? UIColor {
+        while var kolor = enumerator.nextObject() as? Color {
             kolor = kolor.colorWithMinimumSaturation(minSaturation: 0.15)
             if kolor.isDarkColor == findDarkTextColor {
                 let colorCount = imageColors.count(for: kolor)
