@@ -117,11 +117,27 @@ extension Color {
 
 extension Image {
     
+//    func resize(image: NSImage, w: Int, h: Int) -> NSImage {
+//        var destSize = NSMakeSize(CGFloat(w), CGFloat(h))
+//        var newImage = NSImage(size: destSize)
+//        newImage.lockFocus()
+//        image.drawInRect(NSMakeRect(0, 0, destSize.width, destSize.height), fromRect: NSMakeRect(0, 0, image.size.width, image.size.height), operation: NSCompositingOperation.CompositeSourceOver, fraction: CGFloat(1))
+//        newImage.unlockFocus()
+//        newImage.size = destSize
+//        return NSImage(data: newImage.TIFFRepresentation!)!
+//    }
+    
     private func getCGImageForSize(newSize: CGSize) -> CGImage? {
+        
         var rect = CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height)
         
         #if os(OSX)
-            return self.cgImage(forProposedRect: &rect, context: NSGraphicsContext.current, hints: nil)
+            let newImage = Image(size: newSize)
+            newImage.lockFocus()
+            let selfRect = CGRect(x: 0, y: 0, width: self.size.width, height: self.size.height )
+            self.draw(in: rect, from: selfRect, operation: NSCompositingOperation.sourceOver, fraction: 1)
+            newImage.unlockFocus()
+            return newImage.cgImage(forProposedRect: &rect, context: NSGraphicsContext.current, hints: nil)
         #else
             UIGraphicsBeginImageContextWithOptions( newSize, false, 0)
             defer {
